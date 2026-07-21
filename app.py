@@ -21,7 +21,7 @@ st.caption(f"📅 Agenda y recomendaciones para hoy: **{hoy_str}**")
 # ---------------------------------------------------------
 # Puedes registrarte gratis en https://the-odds-api.com para obtener una API Key gratuita.
 # Si no hay API Key configurada, la app carga el conector dinámico diario.
-API_KEY = st.sidebar.text_input("🔑 API Key (The-Odds-API - Opcional)", type="password")
+API_KEY = "e387548ff23f836b1052c3b59b045f45"
 
 @st.cache_data(ttl=3600)  # Recarga datos cada hora automáticamente
 def obtener_partidos_del_dia(api_key):
