@@ -11,7 +11,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Estilos CSS personalizados para que sea súper visual
+# Estilos CSS personalizados
 st.markdown("""
     <style>
     .match-card {
@@ -38,13 +38,6 @@ st.markdown("""
         font-weight: bold;
         font-size: 12px;
     }
-    .dnb-box {
-        background-color: #2c3e50;
-        padding: 8px;
-        border-radius: 6px;
-        text-align: center;
-        font-weight: bold;
-    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -63,7 +56,6 @@ def cargar_datos_deportes():
     partidos_tenis = []
     partidos_futbol = []
     
-    # Intento de conexión con la API
     try:
         url_tenis = f"https://api.the-odds-api.com/v4/sports/tennis_atp/odds/?regions=eu&markets=h2h&apiKey={API_KEY}"
         res_t = requests.get(url_tenis)
@@ -77,7 +69,6 @@ def cargar_datos_deportes():
     except:
         pass
 
-    # Si la API no devuelve partidos en este instante, cargamos los eventos destacados visuales del día
     if not partidos_tenis:
         partidos_tenis = [
             {
@@ -131,7 +122,8 @@ with tabs[0]:
     st.header("🎾 Partidos de Tenis Destacados")
     st.write("Cuotas y pronósticos directos para el circuito de tenis hoy:")
     
-    for t in tenis_list:
+    # Usamos idx para asegurar keys únicas
+    for idx, t in enumerate(tenis_list):
         with st.container():
             col_img, col_info, col_odds = st.columns([1.5, 2.5, 2])
             
@@ -150,7 +142,8 @@ with tabs[0]:
                 c1, c2 = st.columns(2)
                 c1.metric(f"1 ({t['home_team']})", f"@{t.get('cuota_1', 1.80)}")
                 c2.metric(f"2 ({t['away_team']})", f"@{t.get('cuota_2', 2.00)}")
-                st.button(f"Copiar Apuesta Tenis", key=f"btn_t_{t['home_team']}")
+                # Key única para botón de tenis
+                st.button("Copiar Apuesta Tenis", key=f"btn_t_{idx}_{t['home_team']}")
             
             st.divider()
 
@@ -159,7 +152,8 @@ with tabs[1]:
     st.header("⚽ Fútbol & Apuestas DNB (Empate No Apuesta)")
     st.write("El mercado **DNB (Draw No Bet)** te devuelve lo apostado si el partido acaba en empate.")
     
-    for f in futbol_list:
+    # Usamos idx para asegurar keys únicas
+    for idx, f in enumerate(futbol_list):
         with st.container():
             col_img, col_info, col_odds = st.columns([1.5, 2.5, 2])
             
@@ -172,7 +166,6 @@ with tabs[1]:
                 st.subheader(f"{f['home_team']} vs {f['away_team']}")
                 st.caption(f"🏆 {f.get('tournament', 'Liga Principal')}")
                 
-                # Explicación DNB integrada
                 st.warning(f"🛡️ **Opción DNB Recomendada:** {f['home_team']} (DNB @{f.get('dnb_1', 1.50)})\n\n*(Si gana cobras, si empatan te devuelven el dinero)*")
                 
             with col_odds:
@@ -184,7 +177,8 @@ with tabs[1]:
                 
                 st.markdown("---")
                 st.markdown(f"**DNB {f['home_team']}:** `@{f.get('dnb_1', 1.50)}` | **DNB {f['away_team']}:** `@{f.get('dnb_2', 2.10)}`")
-                st.button("Copiar Ticket DNB", key=f"btn_f_{f['home_team']}")
+                # Key única corregida para botón de fútbol
+                st.button("Copiar Ticket DNB", key=f"btn_f_{idx}_{f['home_team']}")
                 
             st.divider()
 
