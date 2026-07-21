@@ -1,27 +1,34 @@
 import streamlit as st
 import requests
-from datetime import datetime
+from datetime import datetime, timezone
 
 # ---------------------------------------------------------
-# CONFIGURACIÓN DE PÁGINA Y MARCA
+# CONFIGURACIÓN DE PÁGINA
 # ---------------------------------------------------------
 st.set_page_config(
-    page_title="Winamax Ultimate Sports Studio",
-    page_icon="👑",
+    page_title="Winamax Today Analyst",
+    page_icon="📅",
     layout="wide"
 )
 
-# Estilos CSS Avanzados (Modo Oscuro Premium)
+# Estilos CSS
 st.markdown("""
     <style>
     .main { background-color: #0f1115; }
     .winamax-header {
         background: linear-gradient(135deg, #d32f2f 0%, #4a0000 100%);
-        padding: 22px;
+        padding: 20px;
         border-radius: 12px;
         color: white;
         margin-bottom: 20px;
-        box-shadow: 0 4px 15px rgba(211, 47, 47, 0.3);
+    }
+    .time-badge {
+        background-color: #ff9800;
+        color: #000000;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: bold;
     }
     .badge-deporte {
         background-color: #2b303c;
@@ -30,170 +37,132 @@ st.markdown("""
         border-radius: 6px;
         font-size: 11px;
         font-weight: bold;
-        border: 1px solid #3d4454;
-    }
-    .badge-favorito {
-        background-color: #1b5e20;
-        color: #81c784;
-        padding: 4px 10px;
-        border-radius: 6px;
-        font-size: 11px;
-        font-weight: bold;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# Cabecera
-st.markdown("""
+# Cabecera con fecha de HOY
+hoy_dt = datetime.now()
+fecha_hoy_str = hoy_dt.strftime("%d/%m/%Y")
+
+st.markdown(f"""
     <div class="winamax-header">
-        <h1>👑 WINAMAX ULTIMATE ANALYTICS</h1>
-        <p>Plataforma Multideporte: Fútbol, Tenis Completo, Baloncesto y Selección de Chollos Extra</p>
+        <h1>📅 PARTIDOS Y CUOTAS DE HOY ({fecha_hoy_str})</h1>
+        <p>Filtrado exclusivo de eventos que se disputan el día de hoy con hora local.</p>
     </div>
 """, unsafe_allow_html=True)
 
 API_KEY = "e387548ff23f836b1052c3b59b045f45"
-fecha_actual = datetime.now().strftime("%d/%m/%Y - %H:%M")
 
 st.sidebar.image("https://upload.wikimedia.org/wikipedia/commons/2/29/Winamax_logo.svg", width=170)
-st.sidebar.markdown(f"**Sistema:** 🟢 Conectado")
-st.sidebar.markdown(f"**Última Sincronización:**\n`{fecha_actual}`")
+st.sidebar.markdown(f"**Fecha Filtro:** `{fecha_hoy_str}`")
 st.sidebar.divider()
 
 # ---------------------------------------------------------
-# MOTOR EXTENDIDO DE EXTRACCIÓN DE DATOS
+# FUNCIÓN DE FILTRADO EXCLUSIVO PARA HOY
 # ---------------------------------------------------------
-@st.cache_data(ttl=900)
-def obtener_deporte_api(key_deporte):
+@st.cache_data(ttl=600)
+def obtener_eventos_solo_hoy(key_deporte):
     url = f"https://api.the-odds-api.com/v4/sports/{key_deporte}/odds/?regions=eu&markets=h2h&apiKey={API_KEY}"
+    eventos_hoy = []
+    
     try:
-        r = requests.get(url, timeout=4)
+        r = requests.get(url, timeout=5)
         if r.status_code == 200:
-            return r.json()
+            datos = r.json()
+            fecha_hoy_iso = datetime.now().strftime("%Y-%m-%d")
+            
+            for item in datos:
+                commence_time = item.get('commence_time', '')
+                # Verificar si el partido se juega HOY (comparando fecha ISO YYYY-MM-DD)
+                if commence_time.startswith(fecha_hoy_iso):
+                    # Formatear la hora HH:MM
+                    try:
+                        dt_obj = datetime.fromisoformat(commence_time.replace('Z', '+00:00'))
+                        item['hora_formateada'] = dt_obj.strftime("%H:%M")
+                    except:
+                        item['hora_formateada'] = commence_time[11:16]
+                    eventos_hoy.append(item)
     except:
         pass
-    return []
+    return eventos_hoy
 
-# Carga masiva de múltiples categorías
-fut_la_liga = obtener_deporte_api("soccer_spain_la_liga")
-fut_champions = obtener_deporte_api("soccer_uefa_champions_league")
-fut_premier = obtener_deporte_api("soccer_epl")
-
-tenis_atp = obtener_deporte_api("tennis_atp")
-tenis_wta = obtener_deporte_api("tennis_wta")
-
-basket_nba = obtener_deporte_api("basketball_nba")
-basket_euro = obtener_deporte_api("basketball_euroleague")
+# Carga de datos filtrados solo para hoy
+fut_hoy = obtener_eventos_solo_hoy("soccer_spain_la_liga") + obtener_eventos_solo_hoy("soccer_uefa_champions_league") + obtener_eventos_solo_hoy("soccer_epl")
+tenis_hoy = obtener_eventos_solo_hoy("tennis_atp") + obtener_eventos_solo_hoy("tennis_wta")
+basket_hoy = obtener_eventos_solo_hoy("basketball_nba") + obtener_eventos_solo_hoy("basketball_euroleague")
 
 # ---------------------------------------------------------
-# ESTRUCTURA POR PESTAÑAS
+# INTERFAZ
 # ---------------------------------------------------------
 tabs = st.tabs([
-    "⚽ Fútbol Top", 
-    "🎾 Tenis (ATP / WTA / Challenger)", 
-    "🏀 Baloncesto (NBA / Euroliga)",
-    "🎯 Extras & Favoritos Claros",
-    "🚀 Creador Combo Booster"
+    "⚽ Fútbol de Hoy", 
+    "🎾 Tenis de Hoy", 
+    "🏀 Baloncesto de Hoy",
+    "🚀 Calculadora Combo Booster"
 ])
 
-# --- PESTAÑA 1: FÚTBOL ---
+# --- PESTAÑA FÚTBOL ---
 with tabs[0]:
-    st.subheader("⚽ Fútbol: Ligas Top y Torneos Internacionales")
-    partidos_fut = fut_la_liga + fut_champions + fut_premier
-    
-    if not partidos_fut:
-        st.info("ℹ️ No hay partidos de Fútbol Top con cuotas activas en este instante.")
+    st.subheader(f"⚽ Partidos de Fútbol Programados para Hoy ({fecha_hoy_str})")
+    if not fut_hoy:
+        st.info("ℹ️ No hay partidos de las ligas principales programados para lo que resta del día de hoy.")
     else:
-        for idx, p in enumerate(partidos_fut):
-            home, away = p.get('home_team', 'A'), p.get('away_team', 'B')
-            c1, c2 = st.columns([3, 2])
+        for idx, p in enumerate(fut_hoy):
+            c1, c2, c3 = st.columns([1.5, 3, 2])
             with c1:
-                st.markdown(f"<span class='badge-deporte'>⚽ FÚTBOL</span>", unsafe_allow_html=True)
-                st.markdown(f"### {home} vs {away}")
-                st.caption(f"Torneo: {p.get('sport_title', 'Liga Oficial')}")
+                st.markdown(f"<span class='time-badge'>🕒 HOY {p.get('hora_formateada', '--:--')}</span>", unsafe_allow_html=True)
             with c2:
-                st.button("Copiar a Winamax", key=f"fut_{idx}_{p.get('id')}")
+                st.markdown(f"### {p.get('home_team')} vs {p.get('away_team')}")
+                st.caption(f"🏆 {p.get('sport_title', 'Competición')}")
+            with c3:
+                st.button("Copiar a Winamax", key=f"f_hoy_{idx}_{p.get('id')}")
             st.divider()
 
-# --- PESTAÑA 2: TENIS COMPLETO ---
+# --- PESTAÑA TENIS ---
 with tabs[1]:
-    st.subheader("🎾 Tenis: Circuito Profesional Ampliado")
-    partidos_tenis = tenis_atp + tenis_wta
-    
-    if not partidos_tenis:
-        st.info("ℹ️ Esperando actualización de cuadros de Tenis para las próximas horas.")
+    st.subheader(f"🎾 Encuentros de Tenis de Hoy ({fecha_hoy_str})")
+    if not tenis_hoy:
+        st.info("ℹ️ No hay partidos de tenis ATP/WTA agendados para las horas restantes de hoy.")
     else:
-        for idx, t in enumerate(partidos_tenis):
-            player1, player2 = t.get('home_team', 'Jugador 1'), t.get('away_team', 'Jugador 2')
-            c1, c2 = st.columns([3, 2])
+        for idx, t in enumerate(tenis_hoy):
+            c1, c2, c3 = st.columns([1.5, 3, 2])
             with c1:
-                st.markdown(f"<span class='badge-deporte'>🎾 TENIS</span>", unsafe_allow_html=True)
-                st.markdown(f"### {player1} vs {player2}")
-                st.caption(f"Circuito: {t.get('sport_title', 'Torneo Oficial')}")
+                st.markdown(f"<span class='time-badge'>🕒 HOY {t.get('hora_formateada', '--:--')}</span>", unsafe_allow_html=True)
             with c2:
-                st.button("Copiar Apuesta Tenis", key=f"ten_{idx}_{t.get('id')}")
+                st.markdown(f"### {t.get('home_team')} vs {t.get('away_team')}")
+                st.caption(f"🏆 {t.get('sport_title', 'Torneo')}")
+            with c3:
+                st.button("Copiar Apuesta Tenis", key=f"t_hoy_{idx}_{t.get('id')}")
             st.divider()
 
-# --- PESTAÑA 3: BALONCESTO ---
+# --- PESTAÑA BALONCESTO ---
 with tabs[2]:
-    st.subheader("🏀 Baloncesto: NBA, Euroliga y Ligas Nacionales")
-    partidos_basket = basket_nba + basket_euro
-    
-    if not partidos_basket:
-        st.info("ℹ️ No hay partidos de baloncesto programados en el bloque de horas actual.")
+    st.subheader(f"🏀 Partidos de Basket de Hoy ({fecha_hoy_str})")
+    if not basket_hoy:
+        st.info("ℹ️ No hay partidos de baloncesto fijados para el día de hoy.")
     else:
-        for idx, b in enumerate(partidos_basket):
-            eq1, eq2 = b.get('home_team', 'Equipo A'), b.get('away_team', 'Equipo B')
-            c1, c2 = st.columns([3, 2])
+        for idx, b in enumerate(basket_hoy):
+            c1, c2, c3 = st.columns([1.5, 3, 2])
             with c1:
-                st.markdown(f"<span class='badge-deporte'>🏀 BASKET</span>", unsafe_allow_html=True)
-                st.markdown(f"### {eq1} vs {eq2}")
-                st.caption(f"Competición: {b.get('sport_title', 'Liga Basket')}")
+                st.markdown(f"<span class='time-badge'>🕒 HOY {b.get('hora_formateada', '--:--')}</span>", unsafe_allow_html=True)
             with c2:
-                st.button("Copiar Apuesta Basket", key=f"bas_{idx}_{b.get('id')}")
+                st.markdown(f"### {b.get('home_team')} vs {b.get('away_team')}")
+                st.caption(f"🏆 {b.get('sport_title', 'Liga')}")
+            with c3:
+                st.button("Copiar Apuesta Basket", key=f"b_hoy_{idx}_{b.get('id')}")
             st.divider()
 
-# --- PESTAÑA 4: EXTRAS Y FAVORITOS CLAROS ---
+# --- COMBO BOOSTER ---
 with tabs[3]:
-    st.subheader("🎯 Deportes Extra & Oportunidades de Alto Valor")
-    st.write("Selección automatizada de pronósticos con alta viabilidad para actuar como 'anclas' en tus combinadas:")
+    st.subheader("🚀 Simulador Combo Booster para Ticket Diario")
+    selecciones = st.slider("Número de partidos seleccionados hoy:", 3, 8, 3)
+    cuota_m = st.slider("Cuota media estimada por evento:", 1.20, 1.80, 1.35, 0.05)
     
-    col_e1, col_e2 = st.columns(2)
+    cuota_base = cuota_m ** selecciones
+    bono = 0.05 if selecciones == 3 else (0.075 if selecciones == 4 else 0.10)
+    cuota_total = cuota_base * (1 + bono)
     
-    with col_e1:
-        st.markdown("### 🏆 Chollos / Favoritos del Día")
-        st.success("""
-        * **Balonmano / Champions:** Victoria Local Favorito Principal (`@1.22`)
-        * **Tenis de Mesa / TT Cup:** Ganador Partido P1 (`@1.30`)
-        * **Dardos / Premier League:** Ganador del Match (`@1.35`)
-        """)
-        st.caption("Ideal para sumar el partido número 3 o 4 en tu ticket del Combo Booster.")
-        
-    with col_e2:
-        st.markdown("### 📊 Calculadora de Probabilidad Implícita")
-        cuota_analizar = st.number_input("Introduce cualquier cuota de Winamax:", value=1.35, step=0.05)
-        prob_implicita = (1 / cuota_analizar) * 100
-        
-        st.metric("Probabilidad Estimada por la Casa", f"{round(prob_implicita, 1)}%")
-        if prob_implicita >= 70:
-            st.markdown("<span class='badge-favorito'>GRADO DE CONFIANZA: ALTO</span>", unsafe_allow_html=True)
-
-# --- PESTAÑA 5: CREADOR COMBO BOOSTER ---
-with tabs[4]:
-    st.subheader("🚀 Optimización de Ticket Combo Booster")
-    
-    st.markdown("""
-    Configura tu combinada ideal reuniendo opciones de **Fútbol + Tenis + Basket + Extras**:
-    """)
-    
-    num_selecciones = st.slider("Número de eventos en tu combinada:", 3, 10, 4)
-    cuota_media = st.slider("Cuota media estimada por partido:", 1.25, 1.80, 1.40, 0.05)
-    
-    c_base = cuota_media ** num_selecciones
-    bono = 0.05 if num_selecciones == 3 else (0.075 if num_selecciones == 4 else 0.10 + (num_selecciones - 5) * 0.05)
-    c_final = c_base * (1 + bono)
-    
-    st.divider()
-    m1, m2, m3 = st.columns(3)
-    m1.metric("Cuota Base Multiplicada", f"@{round(c_base, 2)}")
-    m2.metric("Bono Combo Booster", f"+{round(bono*100, 1)}%")
-    m3.metric("CUOTA FINAL EN TICKET", f"@{round(c_final, 2)}")
+    m1, m2 = st.columns(2)
+    m1.metric("Cuota Combinada", f"@{round(cuota_base, 2)}")
+    m2.metric("Cuota Final con Combo Booster", f"@{round(cuota_total, 2)}", delta=f"+{int(bono*100)}% Extra")
